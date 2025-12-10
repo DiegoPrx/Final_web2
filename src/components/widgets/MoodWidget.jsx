@@ -3,11 +3,11 @@
 import { useState } from 'react';
 
 const MOODS = [
-    { id: 'happy', name: 'Feliz / Positivo', emoji: '😊' },
-    { id: 'sad', name: 'Melancólico / Triste', emoji: '😢' },
-    { id: 'energetic', name: 'Energético / Fiesta', emoji: '⚡' },
-    { id: 'calm', name: 'Calmado / Relax', emoji: '😌' },
-    { id: 'focus', name: 'Concentración', emoji: '🧠' }
+    { id: 'happy', name: 'Feliz / Positivo', emoji: '😊', params: { min_valence: 0.7, min_energy: 0.6 } },
+    { id: 'sad', name: 'Melancólico / Triste', emoji: '😢', params: { max_valence: 0.4, max_energy: 0.4 } },
+    { id: 'energetic', name: 'Energético / Fiesta', emoji: '⚡', params: { min_energy: 0.8, min_danceability: 0.7 } },
+    { id: 'calm', name: 'Calmado / Relax', emoji: '😌', params: { max_energy: 0.4, max_danceability: 0.4 } },
+    { id: 'focus', name: 'Concentración', emoji: '🧠', params: { max_speechiness: 0.3, min_instrumentalness: 0.5 } }
 ];
 
 export default function MoodWidget({ onSelect }) {
@@ -19,8 +19,7 @@ export default function MoodWidget({ onSelect }) {
             onSelect(null);
         } else {
             setSelectedMood(mood.id);
-            // Simplemente pasamos el ID, sin parámetros complejos
-            onSelect(mood.id);
+            onSelect(mood.params);
         }
     };
 

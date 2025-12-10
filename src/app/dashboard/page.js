@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-// import { isAuthenticated } from '@/lib/auth'; // Auth check disabled for stage 1
-// import { generatePlaylist, getUserProfile } from '@/lib/spotify'; // Logic disabled
+import { isAuthenticated } from '@/lib/auth';
+import { generatePlaylist, getUserProfile } from '@/lib/spotify';
 import { toggleFavorite } from '@/lib/favorites';
 
 import Header from '@/components/Header';
@@ -16,10 +16,10 @@ import MoodWidget from '@/components/widgets/MoodWidget';
 import TrackWidget from '@/components/widgets/TrackWidget';
 
 export default function Dashboard() {
-    // const router = useRouter(); // Unused in Stage 1
+    const router = useRouter();
 
-    // Estado del usuario (Mock)
-    const [user, setUser] = useState({ display_name: "Usuario Demo" });
+    // Estado del usuario
+    const [user, setUser] = useState(null);
 
     // Estado de widgets
     const [selectedGenres, setSelectedGenres] = useState([]);
@@ -33,15 +33,41 @@ export default function Dashboard() {
     const [playlist, setPlaylist] = useState([]);
     const [isLoadingPlaylist, setIsLoadingPlaylist] = useState(false);
 
-    // Generar playlist (Mock)
+    // Verificar autenticación y obtener perfil
+    useEffect(() => {
+        if (!isAuthenticated()) {
+            router.push('/');
+            return;
+        }
+
+        // Obtener perfil del usuario
+        getUserProfile()
+            .then(profile => setUser(profile))
+            .catch(err => console.error('Error obteniendo perfil:', err));
+    }, [router]);
+
+    // Generar playlist
     const handleGeneratePlaylist = async () => {
         setIsLoadingPlaylist(true);
-        console.log("Generando playlist... (Simulación)");
 
-        setTimeout(() => {
+        try {
+            const preferences = {
+                artists: selectedArtists,
+                genres: selectedGenres,
+                decades: selectedDecades,
+                popularity: popularityRange,
+                tracks: selectedTracks,
+                mood: selectedMood
+            };
+
+            const tracks = await generatePlaylist(preferences);
+            setPlaylist(tracks);
+        } catch (error) {
+            console.error('Error generando playlist:', error);
+            alert('Error al generar playlist. Intenta de nuevo.');
+        } finally {
             setIsLoadingPlaylist(false);
-            alert("La generación de playlists está desactivada en esta versión.");
-        }, 1000);
+        }
     };
 
     // Refrescar playlist con mismas preferencias
@@ -51,7 +77,32 @@ export default function Dashboard() {
 
     // Añadir más canciones
     const handleAddMore = async () => {
-        console.log("Añadir más desactivado");
+        setIsLoadingPlaylist(true);
+
+        try {
+            const preferences = {
+                artists: selectedArtists,
+                genres: selectedGenres,
+                decades: selectedDecades,
+                popularity: popularityRange,
+                tracks: selectedTracks,
+                mood: selectedMood
+            };
+
+            const newTracks = await generatePlaylist(preferences);
+
+            // Combinar con playlist actual y eliminar duplicados
+            const combined = [...playlist, ...newTracks];
+            const unique = Array.from(
+                new Map(combined.map(track => [track.id, track])).values()
+            );
+
+            setPlaylist(unique.slice(0, 50)); // Limitar a 50 total
+        } catch (error) {
+            console.error('Error añadiendo canciones:', error);
+        } finally {
+            setIsLoadingPlaylist(false);
+        }
     };
 
     // Eliminar canción de playlist
@@ -61,9 +112,18 @@ export default function Dashboard() {
 
     // Toggle favorito
     const handleToggleFavorite = (track) => {
-        // toggleFavorite(track); // Desactivado
-        console.log("Toggle favorite desactivado");
+        toggleFavorite(track);
+        // Forzar re-render
+        setPlaylist([...playlist]);
     };
+
+    if (!user) {
+        return (
+            <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500"></div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900">
