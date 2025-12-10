@@ -1,22 +1,54 @@
 import { getAccessToken } from './auth';
 
-// Mock Spotify API logic for Stage 1
-
-// Buscar artistas (Mock)
+// Buscar artistas
 export async function searchArtists(query) {
-  console.log('Would search artists for:', query);
-  return [];
+  const token = getAccessToken();
+  if (!token) throw new Error('No token disponible');
+
+  const response = await fetch(
+    `https://api.spotify.com/v1/search?type=artist&q=${encodeURIComponent(query)}&limit=10`,
+    {
+      headers: { 'Authorization': `Bearer ${token}` }
+    }
+  );
+
+  if (!response.ok) throw new Error('Error al buscar artistas');
+  const data = await response.json();
+  return data.artists.items;
 }
 
-// Buscar canciones (Mock)
+// Buscar canciones
 export async function searchTracks(query) {
-  console.log('Would search tracks for:', query);
-  return [];
+  const token = getAccessToken();
+  if (!token) throw new Error('No token disponible');
+
+  const response = await fetch(
+    `https://api.spotify.com/v1/search?type=track&q=${encodeURIComponent(query)}&limit=20`,
+    {
+      headers: { 'Authorization': `Bearer ${token}` }
+    }
+  );
+
+  if (!response.ok) throw new Error('Error al buscar canciones');
+  const data = await response.json();
+  return data.tracks.items;
 }
 
-// Obtener top tracks de un artista (Mock)
+// Obtener top tracks de un artista
 export async function getArtistTopTracks(artistId) {
-  return [];
+  const token = getAccessToken();
+  if (!token) throw new Error('No token disponible');
+
+  const response = await fetch(
+    `https://api.spotify.com/v1/artists/${artistId}/top-tracks?market=ES`,
+    {
+      headers: { 'Authorization': `Bearer ${token}` }
+    }
+  );
+
+  if (!response.ok) throw new Error('Error al obtener top tracks');
+  const data = await response.json();
+  return data.tracks;
 }
 
 // Obtener perfil del usuario
@@ -32,9 +64,21 @@ export async function getUserProfile() {
   return await response.json();
 }
 
-// Obtener top tracks del usuario (Mock)
+// Obtener top tracks del usuario
 export async function getUserTopTracks() {
-  return [];
+  const token = getAccessToken();
+  if (!token) throw new Error('No token disponible');
+
+  const response = await fetch(
+    'https://api.spotify.com/v1/me/top/tracks?limit=20',
+    {
+      headers: { 'Authorization': `Bearer ${token}` }
+    }
+  );
+
+  if (!response.ok) throw new Error('Error al obtener top tracks');
+  const data = await response.json();
+  return data.items;
 }
 
 // Generar playlist (Mock)
