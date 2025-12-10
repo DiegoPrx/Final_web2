@@ -1,3 +1,5 @@
+import { getAccessToken } from './auth';
+
 // Mock Spotify API logic for Stage 1
 
 // Buscar artistas (Mock)
@@ -17,13 +19,17 @@ export async function getArtistTopTracks(artistId) {
   return [];
 }
 
-// Obtener perfil del usuario (Mock)
+// Obtener perfil del usuario
 export async function getUserProfile() {
-  return {
-    display_name: "Usuario de Prueba",
-    id: "test_user",
-    images: [] // images[0].url
-  };
+  const token = getAccessToken();
+  if (!token) throw new Error('No token disponible');
+
+  const response = await fetch('https://api.spotify.com/v1/me', {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+
+  if (!response.ok) throw new Error('Error al obtener perfil');
+  return await response.json();
 }
 
 // Obtener top tracks del usuario (Mock)
