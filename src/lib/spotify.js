@@ -69,7 +69,7 @@ export async function getArtistTopTracks(artistId) {
 // ----------------------------------------------------------------------
 
 async function getTracksAudioFeatures(trackIds) {
-  // Spotify allows up to 100 ids
+
   if (!trackIds.length) return [];
   const chunks = [];
   for (let i = 0; i < trackIds.length; i += 100) {
@@ -85,39 +85,37 @@ async function getTracksAudioFeatures(trackIds) {
       }
     } catch (e) {
       console.warn(`Failed to fetch audio features for chunk of ${chunk.length} tracks`, e);
-      // Continue without these features
+
     }
   }
-  return allFeatures.filter(f => f); // Filter nulls
+  return allFeatures.filter(f => f);
 }
 
 export async function generatePlaylist(preferences) {
   const {
     genres,
-    artists, // Selected artists (objects)
-    tracks: seedTracks, // Selected tracks (objects)
-    decades, // Array of strings: ['1980', '1990']
-    popularity, // [min, max]
-    mood // Object with params like min_energy, max_valence etc.
+    artists,
+    tracks: seedTracks,
+    decades,
+    popularity,
+    mood
   } = preferences;
 
   let pool = [];
 
-  // 1. Get tracks from selected artists
+
   if (artists && artists.length > 0) {
     const artistPromises = artists.map(a => getArtistTopTracks(a.id));
     const artistTracks = await Promise.all(artistPromises);
     artistTracks.forEach(tracks => pool.push(...tracks));
   }
 
-  // 2. Add seed tracks directly to pool
+
   if (seedTracks && seedTracks.length > 0) {
     pool.push(...seedTracks);
   }
 
-  // 3. (Optional) Get recommendations based on seeds if pool is small
-  // ... for simplicity/robustness we stick to top tracks + seeds filtering first
-  // but let's add recommendation if we have seeds
+
   const seedArtistIds = artists.map(a => a.id).slice(0, 2);
   const seedTrackIds = seedTracks.map(t => t.id).slice(0, 3);
   const seedGenre = genres.slice(0, 1);
@@ -128,7 +126,7 @@ export async function generatePlaylist(preferences) {
     if (seedTrackIds.length) query += `&seed_tracks=${seedTrackIds.join(',')}`;
     if (seedGenre.length && seedArtistIds.length + seedTrackIds.length < 5) query += `&seed_genres=${seedGenre.join(',')}`;
 
-    // Apply mood targets to recommendations directly!
+
     if (mood) {
       Object.entries(mood).forEach(([key, value]) => {
         query += `&target_${key.split('_')[1]}=${value}`;
@@ -143,14 +141,14 @@ export async function generatePlaylist(preferences) {
     }
   }
 
-  // Remove duplicates
+
   const uniqueTracks = new Map();
   pool.forEach(t => uniqueTracks.set(t.id, t));
   pool = Array.from(uniqueTracks.values());
 
-  // 4. Filtering
 
-  // Filter by Decade
+
+
   if (decades && decades.length > 0) {
     pool = pool.filter(track => {
       const releaseDate = track.album.release_date;
@@ -162,15 +160,13 @@ export async function generatePlaylist(preferences) {
     });
   }
 
-  // Filter by Popularity
+
   if (popularity) {
     const [min, max] = popularity;
     pool = pool.filter(track => track.popularity >= min && track.popularity <= max);
   }
 
-  // Filter by Audio Features (Mood)
-  // Only if mood is set AND we didn't already filter via recommendations (though verifying is good)
-  // We wrap this in a TRY-CATCH to prevent the Whole generation from failing if this secondary API fails.
+
   if (mood && pool.length > 0) {
     try {
       const trackIds = pool.map(t => t.id);
@@ -181,10 +177,10 @@ export async function generatePlaylist(preferences) {
 
         pool = pool.filter(track => {
           const f = featuresMap.get(track.id);
-          if (!f) return false; // If we can't get features, we might remove it to be safe, or keep it. Let's remove to be strict.
-          // Check all mood constraints
+          if (!f) return false;
+
           return Object.entries(mood).every(([key, value]) => {
-            const [op, featureName] = key.split('_'); // min, energy
+            const [op, featureName] = key.split('_');
             if (op === 'min') return f[featureName] >= value;
             if (op === 'max') return f[featureName] <= value;
             return true;
@@ -193,11 +189,11 @@ export async function generatePlaylist(preferences) {
       }
     } catch (err) {
       console.error("Mood filtering failed (continuing without it):", err);
-      // We intentionally continue with the pool as-is if filtering fails
+
     }
   }
 
-  // Shuffle and Limit
+
   pool.sort(() => Math.random() - 0.5);
   return pool.slice(0, 30);
 }
