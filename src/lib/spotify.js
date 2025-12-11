@@ -1,89 +1,221 @@
 import { getAccessToken } from './auth';
 
-// Buscar artistas
-export async function searchArtists(query) {
+const BASE_URL = 'https://api.spotify.com/v1';
+
+async function fetchSpotify(endpoint, method = 'GET', body = null) {
   const token = getAccessToken();
-  if (!token) throw new Error('No token disponible');
+  if (!token) throw new Error('No access token');
 
-  const response = await fetch(
-    `https://api.spotify.com/v1/search?type=artist&q=${encodeURIComponent(query)}&limit=10`,
-    {
-      headers: { 'Authorization': `Bearer ${token}` }
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  };
+
+  const config = {
+    method,
+    headers,
+  };
+
+  if (body) {
+    config.body = JSON.stringify(body);
+  }
+
+  const res = await fetch(`${BASE_URL}${endpoint}`, config);
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      throw new Error('Unauthorized');
     }
-  );
+    const errorBody = await res.json().catch(() => ({}));
+    console.error('Spotify API Error Detail:', { status: res.status, endpoint, body: errorBody });
+    throw new Error(errorBody?.error?.message || `Spotify API Error: ${res.status}`);
+  }
 
-  if (!response.ok) throw new Error('Error al buscar artistas');
-  const data = await response.json();
+  return res.json();
+}
+
+// ----------------------------------------------------------------------
+// Mejora 3: Buscadores y Datos de Usuario
+// ----------------------------------------------------------------------
+
+export async function searchArtists(query) {
+  if (!query) return [];
+  const data = await fetchSpotify(`/search?q=${encodeURIComponent(query)}&type=artist&limit=10`);
   return data.artists.items;
 }
 
-// Buscar canciones
 export async function searchTracks(query) {
-  const token = getAccessToken();
-  if (!token) throw new Error('No token disponible');
-
-  const response = await fetch(
-    `https://api.spotify.com/v1/search?type=track&q=${encodeURIComponent(query)}&limit=20`,
-    {
-      headers: { 'Authorization': `Bearer ${token}` }
-    }
-  );
-
-  if (!response.ok) throw new Error('Error al buscar canciones');
-  const data = await response.json();
+  if (!query) return [];
+  const data = await fetchSpotify(`/search?q=${encodeURIComponent(query)}&type=track&limit=10`);
   return data.tracks.items;
 }
 
-// Obtener top tracks de un artista
-export async function getArtistTopTracks(artistId) {
-  const token = getAccessToken();
-  if (!token) throw new Error('No token disponible');
-
-  const response = await fetch(
-    `https://api.spotify.com/v1/artists/${artistId}/top-tracks?market=ES`,
-    {
-      headers: { 'Authorization': `Bearer ${token}` }
-    }
-  );
-
-  if (!response.ok) throw new Error('Error al obtener top tracks');
-  const data = await response.json();
-  return data.tracks;
-}
-
-// Obtener perfil del usuario
 export async function getUserProfile() {
-  const token = getAccessToken();
-  if (!token) throw new Error('No token disponible');
-
-  const response = await fetch('https://api.spotify.com/v1/me', {
-    headers: { 'Authorization': `Bearer ${token}` }
-  });
-
-  if (!response.ok) throw new Error('Error al obtener perfil');
-  return await response.json();
+  return fetchSpotify('/me');
 }
 
-// Obtener top tracks del usuario
 export async function getUserTopTracks() {
-  const token = getAccessToken();
-  if (!token) throw new Error('No token disponible');
-
-  const response = await fetch(
-    'https://api.spotify.com/v1/me/top/tracks?limit=20',
-    {
-      headers: { 'Authorization': `Bearer ${token}` }
-    }
-  );
-
-  if (!response.ok) throw new Error('Error al obtener top tracks');
-  const data = await response.json();
+  const data = await fetchSpotify('/me/top/tracks?limit=20&time_range=medium_term');
   return data.items;
 }
 
-// Generar playlist (Mock)
+export async function getArtistTopTracks(artistId) {
+  const data = await fetchSpotify(`/artists/${artistId}/top-tracks?market=ES`);
+  return data.tracks;
+}
+
+// ----------------------------------------------------------------------
+// Mejora 4: Algoritmo de Generación de Playlist
+// ----------------------------------------------------------------------
+
+async function getTracksAudioFeatures(trackIds) {
+  // Spotify allows up to 100 ids
+  if (!trackIds.length) return [];
+  const chunks = [];
+  for (let i = 0; i < trackIds.length; i += 100) {
+    chunks.push(trackIds.slice(i, i + 100));
+  }
+
+  let allFeatures = [];
+  for (const chunk of chunks) {
+    try {
+      const data = await fetchSpotify(`/audio-features?ids=${chunk.join(',')}`);
+      if (data.audio_features) {
+        allFeatures = [...allFeatures, ...data.audio_features];
+      }
+    } catch (e) {
+      console.warn(`Failed to fetch audio features for chunk of ${chunk.length} tracks`, e);
+      // Continue without these features
+    }
+  }
+  return allFeatures.filter(f => f); // Filter nulls
+}
+
 export async function generatePlaylist(preferences) {
-  console.log('Generating playlist with preferences:', preferences);
-  // Return empty or dummy playlist
-  return [];
+  const {
+    genres,
+    artists, // Selected artists (objects)
+    tracks: seedTracks, // Selected tracks (objects)
+    decades, // Array of strings: ['1980', '1990']
+    popularity, // [min, max]
+    mood // Object with params like min_energy, max_valence etc.
+  } = preferences;
+
+  let pool = [];
+
+  // 1. Get tracks from selected artists
+  if (artists && artists.length > 0) {
+    const artistPromises = artists.map(a => getArtistTopTracks(a.id));
+    const artistTracks = await Promise.all(artistPromises);
+    artistTracks.forEach(tracks => pool.push(...tracks));
+  }
+
+  // 2. Add seed tracks directly to pool
+  if (seedTracks && seedTracks.length > 0) {
+    pool.push(...seedTracks);
+  }
+
+  // 3. (Optional) Get recommendations based on seeds if pool is small
+  // ... for simplicity/robustness we stick to top tracks + seeds filtering first
+  // but let's add recommendation if we have seeds
+  const seedArtistIds = artists.map(a => a.id).slice(0, 2);
+  const seedTrackIds = seedTracks.map(t => t.id).slice(0, 3);
+  const seedGenre = genres.slice(0, 1);
+
+  if (seedArtistIds.length > 0 || seedTrackIds.length > 0 || seedGenre.length > 0) {
+    let query = `/recommendations?limit=50&market=ES`;
+    if (seedArtistIds.length) query += `&seed_artists=${seedArtistIds.join(',')}`;
+    if (seedTrackIds.length) query += `&seed_tracks=${seedTrackIds.join(',')}`;
+    if (seedGenre.length && seedArtistIds.length + seedTrackIds.length < 5) query += `&seed_genres=${seedGenre.join(',')}`;
+
+    // Apply mood targets to recommendations directly!
+    if (mood) {
+      Object.entries(mood).forEach(([key, value]) => {
+        query += `&target_${key.split('_')[1]}=${value}`;
+      });
+    }
+
+    try {
+      const recData = await fetchSpotify(query);
+      pool.push(...recData.tracks);
+    } catch (e) {
+      console.warn("Recommendations failed", e);
+    }
+  }
+
+  // Remove duplicates
+  const uniqueTracks = new Map();
+  pool.forEach(t => uniqueTracks.set(t.id, t));
+  pool = Array.from(uniqueTracks.values());
+
+  // 4. Filtering
+
+  // Filter by Decade
+  if (decades && decades.length > 0) {
+    pool = pool.filter(track => {
+      const releaseDate = track.album.release_date;
+      const year = parseInt(releaseDate.split('-')[0]);
+      return decades.some(d => {
+        const decadeStart = parseInt(d);
+        return year >= decadeStart && year < decadeStart + 10;
+      });
+    });
+  }
+
+  // Filter by Popularity
+  if (popularity) {
+    const [min, max] = popularity;
+    pool = pool.filter(track => track.popularity >= min && track.popularity <= max);
+  }
+
+  // Filter by Audio Features (Mood)
+  // Only if mood is set AND we didn't already filter via recommendations (though verifying is good)
+  // We wrap this in a TRY-CATCH to prevent the Whole generation from failing if this secondary API fails.
+  if (mood && pool.length > 0) {
+    try {
+      const trackIds = pool.map(t => t.id);
+      const features = await getTracksAudioFeatures(trackIds);
+
+      if (features.length > 0) {
+        const featuresMap = new Map(features.map(f => [f.id, f]));
+
+        pool = pool.filter(track => {
+          const f = featuresMap.get(track.id);
+          if (!f) return false; // If we can't get features, we might remove it to be safe, or keep it. Let's remove to be strict.
+          // Check all mood constraints
+          return Object.entries(mood).every(([key, value]) => {
+            const [op, featureName] = key.split('_'); // min, energy
+            if (op === 'min') return f[featureName] >= value;
+            if (op === 'max') return f[featureName] <= value;
+            return true;
+          });
+        });
+      }
+    } catch (err) {
+      console.error("Mood filtering failed (continuing without it):", err);
+      // We intentionally continue with the pool as-is if filtering fails
+    }
+  }
+
+  // Shuffle and Limit
+  pool.sort(() => Math.random() - 0.5);
+  return pool.slice(0, 30);
+}
+
+// ----------------------------------------------------------------------
+// Mejora 5: Guardar Playlist
+// ----------------------------------------------------------------------
+
+export async function createPlaylist(userId, name, description = "Generated by Taste Mixer") {
+  return fetchSpotify(`/users/${userId}/playlists`, 'POST', {
+    name,
+    description,
+    public: false
+  });
+}
+
+export async function addTracksToPlaylist(playlistId, trackUris) {
+  return fetchSpotify(`/playlists/${playlistId}/tracks`, 'POST', {
+    uris: trackUris
+  });
 }

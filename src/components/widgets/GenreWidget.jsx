@@ -1,97 +1,68 @@
 'use client';
 
-import { useState } from 'react';
-
-const GENRES = [
-    'acoustic', 'afrobeat', 'alt-rock', 'alternative', 'ambient',
-    'anime', 'black-metal', 'bluegrass', 'blues', 'bossanova',
-    'brazil', 'breakbeat', 'british', 'cantopop', 'chicago-house',
-    'children', 'chill', 'classical', 'club', 'comedy',
-    'country', 'dance', 'dancehall', 'death-metal', 'deep-house',
-    'detroit-techno', 'disco', 'disney', 'drum-and-bass', 'dub',
-    'dubstep', 'edm', 'electro', 'electronic', 'emo',
-    'folk', 'forro', 'french', 'funk', 'garage',
-    'german', 'gospel', 'goth', 'grindcore', 'groove',
-    'grunge', 'guitar', 'happy', 'hard-rock', 'hardcore',
-    'hardstyle', 'heavy-metal', 'hip-hop', 'house', 'idm',
-    'indian', 'indie', 'indie-pop', 'industrial', 'iranian',
-    'j-dance', 'j-idol', 'j-pop', 'j-rock', 'jazz',
-    'k-pop', 'kids', 'latin', 'latino', 'malay',
-    'mandopop', 'metal', 'metal-misc', 'metalcore', 'minimal-techno',
-    'movies', 'mpb', 'new-age', 'new-release', 'opera',
-    'pagode', 'party', 'philippines-opm', 'piano', 'pop',
-    'pop-film', 'post-dubstep', 'power-pop', 'progressive-house', 'psych-rock',
-    'punk', 'punk-rock', 'r-n-b', 'rainy-day', 'reggae',
-    'reggaeton', 'road-trip', 'rock', 'rock-n-roll', 'rockabilly',
-    'romance', 'sad', 'salsa', 'samba', 'sertanejo',
-    'show-tunes', 'singer-songwriter', 'ska', 'sleep', 'songwriter',
-    'soul', 'soundtracks', 'spanish', 'study', 'summer',
-    'swedish', 'synth-pop', 'tango', 'techno', 'trance',
-    'trip-hop', 'turkish', 'work-out', 'world-music'
+const genres = [
+    { id: 'pop', name: 'Pop', emoji: '🎤', color: 'from-pink-500 to-rose-500' },
+    { id: 'rock', name: 'Rock', emoji: '🎸', color: 'from-red-500 to-orange-500' },
+    { id: 'hip-hop', name: 'Hip Hop', emoji: '🧢', color: 'from-purple-500 to-indigo-500' },
+    { id: 'electronic', name: 'Electronic', emoji: '⚡', color: 'from-blue-400 to-cyan-500' },
+    { id: 'latin', name: 'Latino', emoji: '💃', color: 'from-yellow-400 to-orange-500' },
+    { id: 'indie', name: 'Indie', emoji: '🌿', color: 'from-green-400 to-emerald-500' },
+    { id: 'metal', name: 'Metal', emoji: '🤘', color: 'from-gray-700 to-black' },
+    { id: 'r-n-b', name: 'R&B', emoji: '🎷', color: 'from-blue-600 to-purple-700' },
 ];
 
 export default function GenreWidget({ selectedGenres = [], onSelect }) {
-    const [searchTerm, setSearchTerm] = useState('');
-
-    // Filtrar géneros por búsqueda
-    const filteredGenres = GENRES.filter(genre =>
-        genre.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const handleGenreClick = (genre) => {
-        if (selectedGenres.includes(genre)) {
-            // Deseleccionar
-            onSelect(selectedGenres.filter(g => g !== genre));
+    const toggleGenre = (genreId) => {
+        if (selectedGenres.includes(genreId)) {
+            onSelect(selectedGenres.filter(g => g !== genreId));
         } else {
-            // Seleccionar (máximo 5)
-            if (selectedGenres.length < 5) {
-                onSelect([...selectedGenres, genre]);
+            if (selectedGenres.length < 3) {
+                onSelect([...selectedGenres, genreId]);
             }
         }
     };
 
     return (
-        <div className="bg-gray-800 rounded-xl p-6">
-            <h3 className="text-xl font-bold text-white mb-1">🎸 Géneros</h3>
-            <p className="text-gray-400 text-sm mb-4">Selecciona hasta 5 géneros</p>
-
-            {/* Buscador */}
-            <input
-                type="text"
-                placeholder="Buscar género..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-
-            {/* Contador */}
-            <div className="text-sm text-gray-400 mb-3">
-                {selectedGenres.length} / 5 seleccionados
+        <div className="bg-gray-900/60 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-xl h-full">
+            <div className="flex justify-between items-start mb-4">
+                <div>
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                        <span className="text-2xl">🎧</span> Géneros
+                    </h3>
+                    <p className="text-gray-400 text-sm mt-1">Elige hasta 3 estilos</p>
+                </div>
+                <div className="bg-gray-800/50 px-3 py-1 rounded-full text-xs font-mono text-gray-300 border border-white/5">
+                    {selectedGenres.length}/3
+                </div>
             </div>
 
-            {/* Grid de géneros */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-2">
-                {filteredGenres.map((genre) => {
-                    const isSelected = selectedGenres.includes(genre);
+            <div className="grid grid-cols-2 gap-3">
+                {genres.map((genre) => {
+                    const isSelected = selectedGenres.includes(genre.id);
                     return (
                         <button
-                            key={genre}
-                            onClick={() => handleGenreClick(genre)}
-                            disabled={!isSelected && selectedGenres.length >= 5}
-                            className={`px-3 py-2 rounded-lg text-sm transition-all ${isSelected
-                                    ? 'bg-green-600 text-white'
-                                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                                } ${!isSelected && selectedGenres.length >= 5 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            key={genre.id}
+                            onClick={() => toggleGenre(genre.id)}
+                            disabled={!isSelected && selectedGenres.length >= 3}
+                            className={`
+                                relative overflow-hidden rounded-xl p-3 transition-all duration-300 text-left group w-full
+                                ${isSelected
+                                    ? `bg-gradient-to-br ${genre.color} shadow-lg shadow-${genre.color.split('-')[1]}-500/20 scale-[1.02] border-transparent`
+                                    : 'bg-gray-800/50 hover:bg-gray-700/50 border border-white/5 hover:border-white/10'
+                                }
+                                ${!isSelected && selectedGenres.length >= 3 ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer'}
+                            `}
                         >
-                            {genre}
+                            <div className="relative z-10 flex items-center justify-between">
+                                <span className={`font-semibold ${isSelected ? 'text-white' : 'text-gray-300 group-hover:text-white'}`}>{genre.name}</span>
+                                <span className={`text-xl transition-transform duration-300 ${isSelected ? 'scale-125 rotate-12' : 'group-hover:scale-110'}`}>
+                                    {genre.emoji}
+                                </span>
+                            </div>
                         </button>
                     );
                 })}
             </div>
-
-            {filteredGenres.length === 0 && (
-                <p className="text-gray-500 text-center py-4">No se encontraron géneros</p>
-            )}
         </div>
     );
 }
